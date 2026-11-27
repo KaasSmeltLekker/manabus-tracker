@@ -322,7 +322,10 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("cache prewarmed");
     });
 
-    let public_app = public_api::router().layer(public_cors);
+    let public_app = public_api::router()
+        .layer(CompressionLayer::new())
+        .layer(public_cors)
+        .with_state(state.clone());
 
     let internal_app = Router::new()
         .route("/api/health", get(health))
@@ -352,14 +355,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/admin/buses", post(admin_upsert_bus))
         .route("/api/admin/buses/:pref/:id", delete(admin_remove_bus))
         .route("/api/admin/reset/:pref", post(admin_reset_city))
-        .layer(cors);
+        .layer(CompressionLayer::new())
+        .layer(socket_layer)
+        .layer(cors)
+        .with_state(state);
 
     let app = Router::new()
         .merge(public_app)
-        .merge(internal_app)
-        .layer(CompressionLayer::new())
-        .layer(socket_layer)
-        .with_state(state);
+        .fallback_service(internal_app);
 
     let bind_addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".into());
     tracing::info!("listening on {bind_addr}");
