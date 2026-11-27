@@ -1,4 +1,4 @@
-# Aplikasi ManaBus? (`manabus-tracker`)
+# Webapp ManaBus? (`manabus-tracker`)
 
 Folder ini menampung dua app utama ManaBus?:
 
