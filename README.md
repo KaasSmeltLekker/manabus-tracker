@@ -1,6 +1,6 @@
 # ManaBus? (`manabus-tracker`)
 
-Tracker bus kota realtime untuk **Surabaya** dan **Yogyakarta**. Posisi bus, jalur koridor, daftar halte, sampai perkiraan waktu tiba ada di satu peta.
+Tracker bus kota realtime untuk **Surabaya dan Yogyakarta (Dukungan untuk kota lain akan ditambah kedepannya).
 
 ```
 manabus-tracker/
