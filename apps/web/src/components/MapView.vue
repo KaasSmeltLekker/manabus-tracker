@@ -706,6 +706,7 @@ onMounted(() => {
     operator.value.center,
     12,
   );
+  map.attributionControl?.setPrefix(false);
   map.on("zoomend", syncZoomState);
   if (effectiveBottomInset() > 0) {
     setViewWithInset(operator.value.center, 12);
@@ -749,7 +750,7 @@ onMounted(() => {
         style,
         attributionControl: {
           customAttribution:
-            'OpenFreeMap &copy; <a href="https://www.openmaptiles.org/">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            '&copy; <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &middot; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> &middot; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OSM</a>',
         },
       }).addTo(map);
       appliedMapTheme = initialTheme;

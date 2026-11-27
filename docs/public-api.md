@@ -1,33 +1,33 @@
 # ManaBus? Public REST API (`v1`)
 
-Read-only public JSON API backed by `manabus-proxy`. All upstream encryption (`GPS_KEY`), bearer tokens, and socket credentials stay strictly on the server — external apps and websites never need an API key or cryptographic secret.
+API JSON read-only dari `manabus-proxy`. Enkripsi (`GPS_KEY`), bearer token, dan kredensial socket cuma hidup di server — web atau app luar bisa langsung pakai tanpa API key.
 
-## Basics
+## Dasar
 
-- **Base URL**: `https://<your-domain>/api/v1` (or `http://localhost:8080/api/v1` locally)
-- **Authentication**: None required (read-only)
-- **Data Source**: Serves raw upstream transit data directly; unaffected by `/atmin` admin overrides
-- **CORS**: Enabled for `GET` / `OPTIONS` from any origin (`Access-Control-Allow-Origin: *`)
-- **Rate Limit**: `120` requests per IP per 60 seconds
-  - Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`
-  - Exceeding the limit returns HTTP `429` with `Retry-After` and `{ "ok": false, "error": "rate limit exceeded", "retry_after_s": <seconds> }`
+- **Base URL**: `https://<domain-kamu>/api/v1` (lokal: `http://localhost:8080/api/v1`)
+- **Auth**: Tidak perlu (read-only)
+- **Data**: Langsung dari sumber transit mentah, tidak terpengaruh editan panel `/atmin`
+- **CORS**: Terbuka untuk `GET` dan `OPTIONS` dari origin mana saja (`Access-Control-Allow-Origin: *`)
+- **Rate limit**: `120` request per IP tiap 60 detik
+  - Header balasan: `X-RateLimit-Limit`, `X-RateLimit-Remaining`
+  - Lewat batas bakal dapat HTTP `429`, header `Retry-After`, dan JSON `{ "ok": false, "error": "rate limit exceeded", "retry_after_s": <detik> }`
 
-## Supported Cities
+## Kode Kota
 
-Use any of these values for `:city`:
+Parameter `:city` menerima salah satu nilai ini:
 
-| City | Accepted `:city` values |
+| Kota | Nilai `:city` |
 | --- | --- |
 | Kota Surabaya | `surabaya`, `sby`, `3501` |
 | Yogyakarta | `yogyakarta`, `jogja`, `yk`, `1` |
 
-## Endpoints
+## Endpoint
 
 ### `GET /api/v1`
-Returns API metadata, rate-limit settings, supported cities, and endpoint templates.
+Info versi API, batas rate limit, daftar kota, dan format URL tiap endpoint.
 
 ### `GET /api/v1/status`
-Returns upstream GPS socket health, uptime, and active bus counts per city.
+Cek koneksi socket GPS, uptime server, dan jumlah bus yang sedang aktif di tiap kota.
 
 ```json
 {
@@ -43,37 +43,37 @@ Returns upstream GPS socket health, uptime, and active bus counts per city.
 ```
 
 ### `GET /api/v1/cities`
-Lists all supported cities with coordinates (`center`) and live fleet counts.
+Daftar kota beserta titik tengah peta (`center`) dan jumlah armada aktif.
 
 ### `GET /api/v1/cities/:city/corridors`
-Lists routes/corridors for the given city, including route polylines and live bus counts.
+Daftar koridor di satu kota, termasuk polyline rute dan jumlah bus aktifnya.
 
-- **Query params**:
-  - `q` (optional): Case-insensitive filter on corridor code, route name, `via`, `origin`, or `toward`.
-- **Caching**: `Cache-Control: public, max-age=60`
+- **Query**:
+  - `q` (opsional): cari kode koridor, nama rute, `via`, `origin`, atau `toward` (tidak peka huruf besar/kecil).
+- **Cache**: `Cache-Control: public, max-age=60`
 
 ### `GET /api/v1/cities/:city/corridors/:code/stops`
-Returns the ordered list of stops along a specific corridor and direction.
+Urutan halte untuk satu koridor di arah tertentu.
 
-- **Query params**:
-  - `direction` (optional, default `a`): `a` (`origin -> toward`) or `b` (`toward -> origin`).
-- **Caching**: `Cache-Control: public, max-age=60`
+- **Query**:
+  - `direction` (opsional, default `a`): `a` (`origin -> toward`) atau `b` (`toward -> origin`).
+- **Cache**: `Cache-Control: public, max-age=60`
 
 ### `GET /api/v1/cities/:city/stops`
-Lists stops in the city.
+Daftar halte di satu kota.
 
-- **Query params**:
-  - `corridor` (optional): Filter stops serving a specific corridor code (e.g. `R1`, `1A`).
-  - `q` (optional): Case-insensitive search by stop name or ID.
-- **Caching**: `Cache-Control: public, max-age=60`
+- **Query**:
+  - `corridor` (opsional): filter halte berdasarkan kode koridor (misalnya `R1`, `1A`).
+  - `q` (opsional): cari nama atau ID halte (tidak peka huruf besar/kecil).
+- **Cache**: `Cache-Control: public, max-age=60`
 
 ### `GET /api/v1/cities/:city/buses`
-Returns live bus positions and telemetry.
+Posisi bus realtime plus kecepatan, arah, jumlah penumpang, dan halte terdekat.
 
-- **Query params**:
-  - `corridor` (optional): Filter by corridor code (e.g. `R1`, `1A`, `FD2`).
-  - `include_stale` (optional, default `true`): Set `false` to exclude vehicles with no GPS fix in over 5 minutes.
-- **Caching**: `Cache-Control: no-store`
+- **Query**:
+  - `corridor` (opsional): filter per kode koridor (misalnya `R1`, `1A`, `FD2`).
+  - `include_stale` (opsional, default `true`): ubah ke `false` kalau mau buang bus yang GPS-nya tidak update lebih dari 5 menit.
+- **Cache**: `Cache-Control: no-store`
 
 ```json
 {
@@ -104,7 +104,7 @@ Returns live bus positions and telemetry.
 }
 ```
 
-## Examples
+## Contoh
 
 ```bash
 curl "http://localhost:8080/api/v1/cities/surabaya/buses?corridor=R1&include_stale=false"
@@ -112,6 +112,6 @@ curl "http://localhost:8080/api/v1/cities/yogyakarta/corridors/1A/stops?directio
 ```
 
 ```js
-const res = await fetch("https://your-domain.example/api/v1/cities/surabaya/buses?corridor=R1");
+const res = await fetch("https://domain-kamu.example/api/v1/cities/surabaya/buses?corridor=R1");
 const { data: buses } = await res.json();
 ```

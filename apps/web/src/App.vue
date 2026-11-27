@@ -937,9 +937,10 @@ button {
 .leaflet-control-attribution {
   background: var(--bg-attribution) !important;
   color: var(--text-muted) !important;
-  border-top-left-radius: 8px;
-  padding: 2px 8px !important;
-  font-size: 11px !important;
+  border-top-left-radius: 6px;
+  padding: 1px 6px !important;
+  font-size: 9.5px !important;
+  line-height: 1.3 !important;
 }
 .leaflet-control-attribution a {
   color: var(--text-link) !important;
@@ -1106,8 +1107,8 @@ button {
 
 @media (max-width: 768px) {
   .leaflet-control-attribution {
-    font-size: 10px !important;
-    padding: 2px 6px !important;
+    font-size: 8.5px !important;
+    padding: 1px 5px !important;
   }
   .shell.mobile .leaflet-control-attribution {
     margin-bottom: 55dvh !important;

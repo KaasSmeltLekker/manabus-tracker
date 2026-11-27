@@ -1,49 +1,48 @@
 # ManaBus? (`manabus-tracker`)
 
-Realtime public transit tracker for **Surabaya** and **Yogyakarta**,
-providing live vehicle positions, route polylines, stop lookups, and arrival ETAs.
-
-Layout:
+Tracker bus kota realtime untuk **Surabaya** dan **Yogyakarta**. Posisi bus, jalur koridor, daftar halte, sampai perkiraan waktu tiba ada di satu peta.
 
 ```
 manabus-tracker/
 ├─ apps/
-│  ├─ web/          # Vue 3 + Vite + TS frontend (Leaflet map)
-│  └─ proxy/        # Rust: axum + socketioxide + rust_socketio
-├─ ops/             # docker-compose, Dockerfiles
-├─ docs/            # Public REST API documentation
-└─ scripts/         # one-off helpers
+│  ├─ web/          # Frontend Vue 3 + Vite + TS (Leaflet & MapLibre)
+│  └─ proxy/        # Backend Rust (axum + socketioxide + rust_socketio)
+├─ ops/             # docker-compose, Dockerfile, config Nginx
+├─ docs/            # Dokumentasi Public REST API
+└─ scripts/         # Skrip bantu
 ```
 
 ## Public API
 
-See `docs/public-api.md` for read-only `/api/v1` endpoints exposed without needing upstream keys.
+Endpoint publik `/api/v1` (read-only, tanpa API key) didokumentasikan di [`docs/public-api.md`](docs/public-api.md).
 
-**Never commit real secrets.** Copy `.env.example` to `.env` and fill
-in the key material there.
+Jangan pernah commit rahasia atau kredensial ke repo. Simpan semuanya di `.env` lokal atau environment variable server.
 
-## Local development
+## Jalankan di Lokal
+
+Buat file `.env` di root proyek, lalu jalankan:
 
 ```bash
-cp .env.example .env
-pnpm install          # web deps
+pnpm install
 cargo fetch --manifest-path apps/proxy/Cargo.toml
-pnpm dev               # runs web + proxy together, once wired up
+pnpm dev
 ```
 
-## GitHub Pages deployment
+Perintah `pnpm dev` menjalankan frontend web dan proxy Rust barengan.
 
-`apps/web` builds as a static site for GitHub Pages via `.github/workflows/pages.yml` (paired with a hosted `apps/proxy` server):
+## Deploy ke GitHub Pages
 
-1. In GitHub: **Settings → Pages → Source**, select **GitHub Actions**.
-2. In **Settings → Secrets and variables → Actions → Variables**, add `VITE_API_BASE` pointing to your public `manabus-proxy` HTTPS URL (e.g. `https://api.example.com`).
-3. On your `manabus-proxy` server `.env`, set `ALLOW_ORIGIN` to your GitHub Pages origin (e.g. `https://<username>.github.io`).
+Frontend `apps/web` di-build jadi situs statis lewat `.github/workflows/pages.yml`, sementara `apps/proxy` di-host terpisah.
+
+1. Di repo GitHub, buka **Settings → Pages → Source**, pilih **GitHub Actions**.
+2. Di **Settings → Secrets and variables → Actions → Variables**, tambah variabel `VITE_API_BASE` berisi URL HTTPS server `manabus-proxy` (misalnya `https://api.example.com`).
+3. Di server `manabus-proxy`, isi `ALLOW_ORIGIN` dengan origin GitHub Pages kamu (misalnya `https://<username>.github.io`).
 
 ## Status
 
-- [x] Upstream API fully reverse-engineered & validated (crypto, auth, live feed)
-- [x] Proxy: REST endpoints + crypto module
-- [x] Proxy: Socket.IO bridge — typed, real-time `BRT-{pref}` forwarding (3501, 1)
-- [x] Web: map + corridor list scaffolded
-- [x] Confirm live-position event name/shape, switch bridge from generic forwarding to typed
-- [ ] Polish + deploy
+- [x] Koneksi data upstream & live feed GPS (enkripsi, auth, stream)
+- [x] Proxy Rust: endpoint REST, modul enkripsi, dan Public REST API `v1`
+- [x] Bridge Socket.IO realtime (`BRT-{pref}` untuk Surabaya `3501` & Yogyakarta `1`)
+- [x] Web: peta, daftar koridor, detail halte, dan panel admin `/atmin`
+- [x] Build & workflow deploy GitHub Pages
+- [ ] Deploy produksi
