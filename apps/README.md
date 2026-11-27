@@ -8,7 +8,7 @@ apps/
 └─ proxy/        # Backend Rust (axum + socketioxide + rust_socketio)
 ```
 
-Endpoint publik `/api/v1` (read-only) bisa dilihat di [`../docs/public-api.md`](../docs/public-api.md). Jangan pernah commit kredensial — taruh semuanya di `.env` lokal.
+Endpoint publik `/api/v1` (read-only) bisa dilihat di [`../docs/public-api.md`](../docs/public-api.md). JANGAN PERNAH COMMIT CREDENTIALS! Save semuanya di `.env` lokal D:
 
 ## Jalanin di localhost
 
