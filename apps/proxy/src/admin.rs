@@ -113,19 +113,175 @@ fn default_stop_color() -> String {
     "#64748b".to_string()
 }
 
+#[derive(Clone)]
+pub struct GistConfig {
+    http: reqwest::Client,
+    id: String,
+    token: String,
+    file: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum GistContent {
+    Inline(String),
+    RawUrl(String),
+}
+
+fn extract_gist_content(payload: &Value, file: &str) -> Option<GistContent> {
+    let entry = payload.get("files")?.get(file)?;
+    let truncated = entry
+        .get("truncated")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if truncated {
+        if let Some(url) = entry
+            .get("raw_url")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            return Some(GistContent::RawUrl(url.to_string()));
+        }
+    }
+    let content = entry
+        .get("content")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    Some(GistContent::Inline(content))
+}
+
+impl GistConfig {
+    pub fn from_env(http: reqwest::Client) -> Option<Self> {
+        let id = std::env::var("ADMIN_GIST_ID")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())?;
+        let token = std::env::var("ADMIN_GIST_TOKEN")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())?;
+        let file = std::env::var("ADMIN_GIST_FILE")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "admin_overrides.json".to_string());
+        Some(Self {
+            http,
+            id,
+            token,
+            file,
+        })
+    }
+
+    async fn load(&self) -> anyhow::Result<Option<AdminData>> {
+        let resp = self
+            .http
+            .get(format!("https://api.github.com/gists/{}", self.id))
+            .bearer_auth(&self.token)
+            .header("User-Agent", "manabus-proxy")
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .send()
+            .await?;
+        let status = resp.status();
+        if !status.is_success() {
+            anyhow::bail!("GitHub Gist fetch failed with status {status}");
+        }
+        let payload = resp.json::<Value>().await?;
+        let raw = match extract_gist_content(&payload, &self.file) {
+            None => return Ok(None),
+            Some(GistContent::Inline(text)) => text,
+            Some(GistContent::RawUrl(url)) => {
+                let raw_resp = self
+                    .http
+                    .get(url)
+                    .bearer_auth(&self.token)
+                    .header("User-Agent", "manabus-proxy")
+                    .send()
+                    .await?;
+                let raw_status = raw_resp.status();
+                if !raw_status.is_success() {
+                    anyhow::bail!("GitHub Gist raw download failed with status {raw_status}");
+                }
+                raw_resp.text().await?
+            }
+        };
+        if raw.trim().is_empty() {
+            return Ok(Some(AdminData::default()));
+        }
+        let parsed = serde_json::from_str::<AdminData>(&raw)?;
+        Ok(Some(parsed))
+    }
+
+    async fn save(&self, body: &str) -> anyhow::Result<()> {
+        let mut files = Map::new();
+        let mut file_obj = Map::new();
+        file_obj.insert("content".into(), Value::String(body.to_string()));
+        files.insert(self.file.clone(), Value::Object(file_obj));
+        let payload = serde_json::json!({ "files": Value::Object(files) });
+        let resp = self
+            .http
+            .patch(format!("https://api.github.com/gists/{}", self.id))
+            .bearer_auth(&self.token)
+            .header("User-Agent", "manabus-proxy")
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .json(&payload)
+            .send()
+            .await?;
+        let status = resp.status();
+        if !status.is_success() {
+            anyhow::bail!("GitHub Gist save failed with status {status}");
+        }
+        Ok(())
+    }
+}
+
 pub struct AdminStore {
     path: PathBuf,
+    gist: Option<GistConfig>,
     data: RwLock<AdminData>,
 }
 
 impl AdminStore {
+    #[cfg(test)]
     pub async fn load(path: PathBuf) -> Self {
+        Self::load_with_gist(path, None).await
+    }
+
+    pub async fn load_with_gist(path: PathBuf, gist: Option<GistConfig>) -> Self {
+        if let Some(ref cfg) = gist {
+            match cfg.load().await {
+                Ok(Some(remote)) => {
+                    let _ = Self::persist_local(&path, &remote).await;
+                    tracing::info!(file = %cfg.file, "loaded admin overrides from GitHub Gist");
+                    return Self {
+                        path,
+                        gist,
+                        data: RwLock::new(remote),
+                    };
+                }
+                Ok(None) => {
+                    tracing::warn!(
+                        file = %cfg.file,
+                        "file missing in GitHub Gist, falling back to local file"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "failed to load admin overrides from GitHub Gist, falling back to local file: {e:#}"
+                    );
+                }
+            }
+        }
         let parsed = match tokio::fs::read_to_string(&path).await {
             Ok(raw) => serde_json::from_str::<AdminData>(&raw).unwrap_or_default(),
             Err(_) => AdminData::default(),
         };
         Self {
             path,
+            gist,
             data: RwLock::new(parsed),
         }
     }
@@ -139,16 +295,24 @@ impl AdminStore {
         guard.cities.get(pref).cloned().unwrap_or_default()
     }
 
-    async fn persist(path: &PathBuf, data: &AdminData) -> anyhow::Result<()> {
+    async fn persist_local(path: &PathBuf, data: &AdminData) -> anyhow::Result<String> {
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
                 tokio::fs::create_dir_all(parent).await?;
             }
         }
-        let body = serde_json::to_vec_pretty(data)?;
+        let body = serde_json::to_string_pretty(data)?;
         let tmp = PathBuf::from(format!("{}.tmp", path.display()));
-        tokio::fs::write(&tmp, body).await?;
+        tokio::fs::write(&tmp, body.as_bytes()).await?;
         tokio::fs::rename(&tmp, path).await?;
+        Ok(body)
+    }
+
+    async fn persist(&self, data: &AdminData) -> anyhow::Result<()> {
+        let body = Self::persist_local(&self.path, data).await?;
+        if let Some(gist) = &self.gist {
+            gist.save(&body).await?;
+        }
         Ok(())
     }
 
@@ -234,7 +398,7 @@ impl AdminStore {
             }
         }
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(updated)
     }
 
@@ -255,7 +419,7 @@ impl AdminStore {
         let city = guard.cities.entry(pref.to_string()).or_default();
         city.corridor_order = cleaned;
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(updated)
     }
 
@@ -304,7 +468,7 @@ impl AdminStore {
                 .retain(|c| norm_code(c) != key && norm_code(c) != target_hide);
         }
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(updated)
     }
 
@@ -318,7 +482,7 @@ impl AdminStore {
         let city = guard.cities.entry(pref.to_string()).or_default();
         city.removed_corridors.retain(|c| norm_code(c) != key);
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(updated)
     }
 
@@ -399,7 +563,7 @@ impl AdminStore {
             city.added_stops.push(stop);
         }
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(updated)
     }
 
@@ -422,7 +586,7 @@ impl AdminStore {
             city.removed_stops.push(target);
         }
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(updated)
     }
 
@@ -432,7 +596,7 @@ impl AdminStore {
         let city = guard.cities.entry(pref.to_string()).or_default();
         city.removed_stops.retain(|s| s != target);
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(updated)
     }
 
@@ -484,7 +648,7 @@ impl AdminStore {
             city.added_buses.push(bus.clone());
         }
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok((bus, updated))
     }
 
@@ -497,7 +661,7 @@ impl AdminStore {
         let city = guard.cities.entry(pref.to_string()).or_default();
         city.added_buses.retain(|b| b.id != target);
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(updated)
     }
 
@@ -535,7 +699,7 @@ impl AdminStore {
             _ => anyhow::bail!("invalid reset scope"),
         }
         let updated = city.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok((updated, removed_bus_ids))
     }
 
@@ -563,7 +727,7 @@ impl AdminStore {
         }
         let mut guard = self.data.write().await;
         guard.menu_links = out.clone();
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(out)
     }
 
@@ -605,7 +769,7 @@ impl AdminStore {
             .entry(pref.to_string())
             .or_default()
             .welcome_popup = Some(popup.clone());
-        Self::persist(&self.path, &guard).await?;
+        self.persist(&guard).await?;
         Ok(popup)
     }
 }
@@ -1344,5 +1508,43 @@ mod tests {
         assert_eq!(store.city_popup("3501").await, sby);
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn extracts_gist_inline_and_truncated_raw_url() {
+        let inline_payload = serde_json::json!({
+            "files": {
+                "admin_overrides.json": {
+                    "truncated": false,
+                    "content": "{\"menu_links\":[]}",
+                    "raw_url": "https://gist.githubusercontent.com/example/raw"
+                }
+            }
+        });
+        assert_eq!(
+            extract_gist_content(&inline_payload, "admin_overrides.json"),
+            Some(GistContent::Inline("{\"menu_links\":[]}".into()))
+        );
+
+        let truncated_payload = serde_json::json!({
+            "files": {
+                "admin_overrides.json": {
+                    "truncated": true,
+                    "content": "partial",
+                    "raw_url": "https://gist.githubusercontent.com/example/raw-full"
+                }
+            }
+        });
+        assert_eq!(
+            extract_gist_content(&truncated_payload, "admin_overrides.json"),
+            Some(GistContent::RawUrl(
+                "https://gist.githubusercontent.com/example/raw-full".into()
+            ))
+        );
+
+        assert_eq!(
+            extract_gist_content(&truncated_payload, "missing.json"),
+            None
+        );
     }
 }

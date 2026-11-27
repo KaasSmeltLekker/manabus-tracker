@@ -6,7 +6,7 @@ mod socket_bridge;
 use admin::{
     apply_corridor_overrides, apply_leg_stop_overrides, apply_stop_overrides, extract_secret,
     extract_username, upstream_kor_for, verify_secret, AdminStore, CityPopup, CustomBus,
-    CustomCorridor, CustomStop, MenuLink,
+    CustomCorridor, CustomStop, GistConfig, MenuLink,
 };
 use axum::{
     body::Bytes,
@@ -258,7 +258,7 @@ async fn main() -> anyhow::Result<()> {
     let admin_data_path = std::env::var("ADMIN_DATA_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("admin_overrides.json"));
-    let admin_store = AdminStore::load(admin_data_path).await;
+    let admin_store = AdminStore::load_with_gist(admin_data_path, GistConfig::from_env(http.clone())).await;
 
     let (socket_layer, io) = SocketIo::new_layer();
     let live = socket_bridge::LiveCache::default();
