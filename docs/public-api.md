@@ -1,6 +1,6 @@
 # ManaBus? Public API (`v1`)
 
-API JSON read-only dari `manabus-proxy`. Tidak perlu API key, CORS terbuka (`*`), dan datanya mentah langsung dari upstream (tidak terpengaruh `/atmin`).
+API JSON read-only dari `manabus-proxy`. Ga perlu API key, CORS terbuka (`*`), & datanya langsung dari upstream.
 
 - **Base URL**: `https://<domain-kamu>/api/v1` (lokal: `http://localhost:8080/api/v1`)
 - **Rate limit**: `120` req/menit per IP (`429` + header `Retry-After` kalau lewat)
