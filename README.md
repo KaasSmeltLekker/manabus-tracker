@@ -1,6 +1,6 @@
 # ManaBus? (`manabus-tracker`)
 
-Tracker bus kota realtime untuk **Surabaya dan Yogyakarta** (Dukungan untuk kota lain akan ditambah kedepannya).
+Tracker bus kota realtime untuk **Surabaya dan Yogyakarta** (Untuk dukungan di kota lain akan ditambah kedepannya).
 
 ```
 manabus-tracker/
