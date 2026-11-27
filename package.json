@@ -1,0 +1,17 @@
+{
+  "name": "manabus-tracker",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n web,proxy -c blue,green \"pnpm dev:web\" \"pnpm dev:proxy\"",
+    "dev:web": "pnpm --filter ./apps/web dev",
+    "dev:proxy": "cargo run --manifest-path apps/proxy/Cargo.toml",
+    "build:web": "pnpm --filter ./apps/web build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "dependencies": {
+    "@maplibre/maplibre-gl-leaflet": "^0.1.4",
+    "maplibre-gl": "^6.19.0"
+  }
+}

@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+apps/proxy/target/
+apps/web/dist/
+apps/web/exports/
+apps/proxy/admin_overrides.json
+apps/proxy/admin_overrides.json.tmp
+.env
+.env.*
+!.env.example
+private/

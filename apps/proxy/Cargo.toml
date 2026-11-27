@@ -1,0 +1,22 @@
+[package]
+name = "manabus-proxy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = "0.7"
+socketioxide = "0.14"
+rust_socketio = { version = "0.6", features = ["async"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+aes = "0.8"
+cbc = { version = "0.1", features = ["std"] }
+base64 = "0.22"
+jsonwebtoken = "9"
+tower-http = { version = "0.5", features = ["cors", "compression-gzip"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+dotenvy = "0.15"
+anyhow = "1"
