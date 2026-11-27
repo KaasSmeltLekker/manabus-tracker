@@ -37,6 +37,7 @@ function githubPagesAssets(): Plugin {
       outDir = cfg.build.outDir;
     },
     closeBundle() {
+      if (process.env.CF_PAGES === "1") return;
       const target = resolve(outDir);
       copyFileSync(resolve(target, "index.html"), resolve(target, "404.html"));
       writeFileSync(resolve(target, ".nojekyll"), "");
