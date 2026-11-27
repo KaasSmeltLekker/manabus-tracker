@@ -10,12 +10,12 @@ API JSON read-only dari `manabus-proxy`. Ga perlu API key, CORS terbuka (`*`), &
 | Method & Path | Query | Fungsi |
 | --- | --- | --- |
 | `GET /api/v1` | — | Info API & daftar endpoint |
-| `GET /api/v1/status` | — | Status GPS & jumlah bus aktif |
-| `GET /api/v1/cities` | — | Daftar semua kota + jumlah bus |
-| `GET /api/v1/cities/:city/corridors` | `q` | Daftar koridor & polyline (`max-age=60`) |
-| `GET /api/v1/cities/:city/corridors/:code/stops` | `direction=a\|b` | Urutan halte per koridor (`max-age=60`) |
-| `GET /api/v1/cities/:city/stops` | `corridor`, `q` | Daftar halte di kota (`max-age=60`) |
-| `GET /api/v1/cities/:city/buses` | `corridor`, `include_stale=true\|false` | Posisi & telemetri bus realtime (`no-store`) |
+| `GET /api/v1/status` | — | Status GPS & jumlah armada aktif |
+| `GET /api/v1/cities` | — | Daftar semua kota + jumlah armada |
+| `GET /api/v1/cities/:city/corridors` | `q` | Daftar jalur/koridor & polyline (`max-age=60`) |
+| `GET /api/v1/cities/:city/corridors/:code/stops` | `direction=a\|b` | Urutan pemberhentian per koridor (`max-age=60`) |
+| `GET /api/v1/cities/:city/stops` | `corridor`, `q` | Daftar pemberhentian di kota (`max-age=60`) |
+| `GET /api/v1/cities/:city/buses` | `corridor`, `include_stale=true\|false` | Posisi & telemetri armada realtime (`no-store`) |
 
 ## Kode `:city`
 
