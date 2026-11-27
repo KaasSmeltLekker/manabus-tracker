@@ -29,8 +29,10 @@ struct CityMeta {
     slug: &'static str,
     pref: &'static str,
     name: &'static str,
+    operator: &'static str,
     short_code: &'static str,
     center: [f64; 2],
+    aliases: &'static [&'static str],
 }
 
 const CITIES: &[CityMeta] = &[
@@ -38,24 +40,154 @@ const CITIES: &[CityMeta] = &[
         slug: "surabaya",
         pref: "3501",
         name: "Kota Surabaya",
+        operator: "Suroboyo Bus",
         short_code: "SB",
         center: [-7.2575, 112.7521],
+        aliases: &["surabaya", "sby", "sb", "3501"],
     },
     CityMeta {
         slug: "yogyakarta",
         pref: "1",
         name: "Yogyakarta",
+        operator: "Trans Jogja Istimewa",
         short_code: "YK",
         center: [-7.7956, 110.3695],
+        aliases: &["yogyakarta", "jogja", "yk", "1"],
+    },
+    CityMeta {
+        slug: "semarang",
+        pref: "0",
+        name: "Kota Semarang",
+        operator: "Trans Semarang",
+        short_code: "SMG",
+        center: [-7.038243, 110.395329],
+        aliases: &["semarang", "smg", "0"],
+    },
+    CityMeta {
+        slug: "jateng",
+        pref: "3",
+        name: "Jawa Tengah",
+        operator: "Trans Jateng",
+        short_code: "JT",
+        center: [-7.370373, 110.07534],
+        aliases: &["jateng", "jawa-tengah", "jt", "3"],
+    },
+    CityMeta {
+        slug: "batam",
+        pref: "4",
+        name: "Kota Batam",
+        operator: "Trans Batam",
+        short_code: "BTM",
+        center: [1.088486, 104.031265],
+        aliases: &["batam", "btm", "4"],
+    },
+    CityMeta {
+        slug: "jatim",
+        pref: "5",
+        name: "Jawa Timur",
+        operator: "Trans Jatim",
+        short_code: "JTM",
+        center: [-7.350171, 112.575799],
+        aliases: &["jatim", "jawa-timur", "jtm", "5"],
+    },
+    CityMeta {
+        slug: "tangerang",
+        pref: "6",
+        name: "Kota Tangerang",
+        operator: "Trans Tangerang Tayo",
+        short_code: "TNG",
+        center: [-6.180141, 106.633685],
+        aliases: &["tangerang", "tng", "tayo", "6"],
+    },
+    CityMeta {
+        slug: "pekanbaru",
+        pref: "70",
+        name: "Kota Pekanbaru",
+        operator: "Trans Metro Pekanbaru",
+        short_code: "PKU",
+        center: [0.500945, 101.448804],
+        aliases: &["pekanbaru", "pku", "70"],
+    },
+    CityMeta {
+        slug: "banjarmasin",
+        pref: "7",
+        name: "Kota Banjarmasin",
+        operator: "Trans Banjarmasin",
+        short_code: "BJM",
+        center: [-3.314916, 114.58788],
+        aliases: &["banjarmasin", "bjm", "7"],
+    },
+    CityMeta {
+        slug: "aceh",
+        pref: "9",
+        name: "Aceh",
+        operator: "Trans Koetaradja",
+        short_code: "ACH",
+        center: [5.528812, 95.326565],
+        aliases: &["aceh", "koetaradja", "banda-aceh", "9"],
+    },
+    CityMeta {
+        slug: "banjarbaru",
+        pref: "10",
+        name: "Kota Banjarbaru",
+        operator: "Trans Banjarbaru",
+        short_code: "BJB",
+        center: [-3.445954, 114.785569],
+        aliases: &["banjarbaru", "bjb", "10"],
+    },
+    CityMeta {
+        slug: "donggala",
+        pref: "11",
+        name: "Kab. Donggala",
+        operator: "Trans Donggala",
+        short_code: "DGL",
+        center: [-0.767792, 119.76567],
+        aliases: &["donggala", "dgl", "11"],
+    },
+    CityMeta {
+        slug: "palu",
+        pref: "12",
+        name: "Kota Palu",
+        operator: "Trans Palu",
+        short_code: "PLW",
+        center: [-0.814841, 119.875584],
+        aliases: &["palu", "plw", "12"],
+    },
+    CityMeta {
+        slug: "palembang",
+        pref: "13",
+        name: "Kota Palembang",
+        operator: "Feeder LRT Musi Emas Palembang",
+        short_code: "PLG",
+        center: [-2.964593, 104.742944],
+        aliases: &["palembang", "plg", "13"],
+    },
+    CityMeta {
+        slug: "medan",
+        pref: "3502",
+        name: "Kota Medan",
+        operator: "Trans Medan WB",
+        short_code: "MDN",
+        center: [3.642671, 98.682589],
+        aliases: &["medan", "mdn", "3502"],
+    },
+    CityMeta {
+        slug: "bali",
+        pref: "15",
+        name: "Bali",
+        operator: "Trans Metro Dewata",
+        short_code: "BAL",
+        center: [-8.657325, 115.220325],
+        aliases: &["bali", "dewata", "denpasar", "15"],
     },
 ];
 
 fn resolve_city(raw: &str) -> Option<CityMeta> {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "surabaya" | "sby" | "3501" => Some(CITIES[0]),
-        "yogyakarta" | "jogja" | "yk" | "1" => Some(CITIES[1]),
-        _ => None,
-    }
+    let key = raw.trim().to_ascii_lowercase();
+    CITIES
+        .iter()
+        .copied()
+        .find(|c| c.aliases.iter().any(|a| *a == key))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -197,12 +329,13 @@ fn check_rate(
 }
 
 fn city_not_found(rate: RateDecision) -> Response {
+    let supported: Vec<&str> = CITIES.iter().map(|c| c.slug).collect();
     public_json(
         StatusCode::NOT_FOUND,
         json!({
             "ok": false,
             "error": "unknown city",
-            "supported_cities": ["surabaya", "yogyakarta"],
+            "supported_cities": supported,
         }),
         "no-store",
         rate,
@@ -223,7 +356,9 @@ async fn api_index(
         .map(|c| {
             json!({
                 "id": c.slug,
+                "pref": c.pref,
                 "name": c.name,
+                "operator": c.operator,
                 "short_code": c.short_code,
             })
         })
@@ -262,6 +397,13 @@ async fn api_status(
     };
     let now = crate::socket_bridge::now_unix();
     let counts = state.live.counts(now);
+    let mut buses = serde_json::Map::new();
+    for c in CITIES {
+        buses.insert(
+            c.slug.into(),
+            json!(counts.get(c.pref).copied().unwrap_or(0)),
+        );
+    }
     public_json(
         StatusCode::OK,
         json!({
@@ -269,10 +411,7 @@ async fn api_status(
             "upstream_connected": state.upstream_health.is_connected(),
             "last_event_age_s": state.upstream_health.last_event_age_s(now),
             "uptime_s": state.upstream_health.uptime_s(),
-            "buses": {
-                "surabaya": counts.get("3501").copied().unwrap_or(0),
-                "yogyakarta": counts.get("1").copied().unwrap_or(0),
-            }
+            "buses": buses,
         }),
         "no-store",
         rate,
@@ -295,7 +434,9 @@ async fn api_cities(
         .map(|c| {
             json!({
                 "id": c.slug,
+                "pref": c.pref,
                 "name": c.name,
+                "operator": c.operator,
                 "short_code": c.short_code,
                 "center": c.center,
                 "live_buses": counts.get(c.pref).copied().unwrap_or(0),
@@ -890,7 +1031,12 @@ mod tests {
         assert_eq!(resolve_city("yogyakarta").unwrap().pref, "1");
         assert_eq!(resolve_city("jogja").unwrap().pref, "1");
         assert_eq!(resolve_city("yk").unwrap().pref, "1");
-        assert!(resolve_city("semarang").is_none());
+        assert_eq!(resolve_city("semarang").unwrap().pref, "0");
+        assert_eq!(resolve_city("0").unwrap().slug, "semarang");
+        assert_eq!(resolve_city("jatim").unwrap().pref, "5");
+        assert_eq!(resolve_city("bali").unwrap().pref, "15");
+        assert_eq!(resolve_city("medan").unwrap().pref, "3502");
+        assert!(resolve_city("jakarta").is_none());
     }
 
     #[test]

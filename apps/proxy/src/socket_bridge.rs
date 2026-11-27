@@ -12,7 +12,24 @@ use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-const OPERATORS: &[(&str, i64)] = &[("3501", 7 * 3600), ("1", 7 * 3600)];
+const OPERATORS: &[(&str, i64)] = &[
+    ("0", 7 * 3600),
+    ("1", 7 * 3600),
+    ("3", 7 * 3600),
+    ("4", 7 * 3600),
+    ("5", 7 * 3600),
+    ("6", 7 * 3600),
+    ("7", 8 * 3600),
+    ("9", 7 * 3600),
+    ("10", 8 * 3600),
+    ("11", 8 * 3600),
+    ("12", 8 * 3600),
+    ("13", 7 * 3600),
+    ("15", 8 * 3600),
+    ("70", 7 * 3600),
+    ("3501", 7 * 3600),
+    ("3502", 7 * 3600),
+];
 
 pub const STALE_AFTER_S: i64 = 5 * 60;
 pub const DROP_AFTER_S: i64 = 60 * 60;
@@ -498,7 +515,7 @@ mod tests {
         let cache = LiveCache::default();
         let fix = 1_795_092_079;
         assert!(cache.ingest("3501", sample(), fix + DROP_AFTER_S + 1).is_none());
-        assert!(cache.ingest("3502", sample(), fix).is_none());
+        assert!(cache.ingest("99999", sample(), fix).is_none());
         let b = cache.ingest("3501", sample(), fix + STALE_AFTER_S + 1).unwrap();
         assert!(b.stale);
         assert!(cache.snapshot("3501", fix + DROP_AFTER_S + 1).is_empty());
