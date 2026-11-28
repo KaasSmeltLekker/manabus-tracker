@@ -4,7 +4,7 @@ import { prefetchMapStyle } from "../mapStyle";
 import { CITY_PREF, goAdmin, goCity, type CityId } from "../router";
 import { useBusStore } from "../stores/buses";
 
-const HOMEPAGE_NOTE = "Made by Kaitlyn Noya with love <3";
+const HOMEPAGE_NOTE = "Made by Keju 🧀 with love <3";
 const logoUrl = assetUrl("logo.png");
 
 const store = useBusStore();
