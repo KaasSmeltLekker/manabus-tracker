@@ -338,18 +338,26 @@ interface StoredCityPayload {
 }
 
 const CITY_STORAGE_PREFIX = "ndibise-city-v1:";
+const CITY_STORAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ADMIN_SYNC_CHANNEL = "ndibise-admin-sync";
 const cityCache = new Map<string, CitySnapshot>();
 const prefetchingCities = new Set<string>();
 
-function readSessionCity(
+function readStoredCity(
   pref: string,
 ): { corridors: Corridor[]; stops: BusStop[] } | null {
-  if (typeof sessionStorage === "undefined") return null;
+  if (typeof localStorage === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(`${CITY_STORAGE_PREFIX}${pref}`);
+    const raw = localStorage.getItem(`${CITY_STORAGE_PREFIX}${pref}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<StoredCityPayload>;
+    if (typeof parsed?.savedAt === "number" && Date.now() - parsed.savedAt > CITY_STORAGE_TTL_MS) {
+      try {
+        localStorage.removeItem(`${CITY_STORAGE_PREFIX}${pref}`);
+      } catch {
+      }
+      return null;
+    }
     if (
       typeof parsed?.savedAt === "number" &&
       Array.isArray(parsed.corridors) &&
@@ -367,8 +375,8 @@ function readSessionCity(
   return null;
 }
 
-function writeSessionCity(pref: string, corridors: Corridor[], stops: BusStop[]): void {
-  if (typeof sessionStorage === "undefined" || corridors.length === 0 || stops.length === 0) {
+function writeStoredCity(pref: string, corridors: Corridor[], stops: BusStop[]): void {
+  if (typeof localStorage === "undefined" || corridors.length === 0 || stops.length === 0) {
     return;
   }
   try {
@@ -377,7 +385,7 @@ function writeSessionCity(pref: string, corridors: Corridor[], stops: BusStop[])
       corridors,
       stops,
     };
-    sessionStorage.setItem(`${CITY_STORAGE_PREFIX}${pref}`, JSON.stringify(payload));
+    localStorage.setItem(`${CITY_STORAGE_PREFIX}${pref}`, JSON.stringify(payload));
   } catch {
   }
 }
@@ -668,7 +676,7 @@ export const useBusStore = defineStore("buses", {
           stops: this.stops,
           legStops: this.legStops,
         });
-        writeSessionCity(pref, this.corridors, this.stops);
+        writeStoredCity(pref, this.corridors, this.stops);
       }
     },
 
@@ -773,6 +781,12 @@ export const useBusStore = defineStore("buses", {
 
     async invalidateCity(pref: string, broadcast = true) {
       cityCache.delete(pref);
+      if (typeof localStorage !== "undefined") {
+        try {
+          localStorage.removeItem(`${CITY_STORAGE_PREFIX}${pref}`);
+        } catch {
+        }
+      }
       if (typeof sessionStorage !== "undefined") {
         try {
           sessionStorage.removeItem(`${CITY_STORAGE_PREFIX}${pref}`);
@@ -975,7 +989,7 @@ export const useBusStore = defineStore("buses", {
     prefetchCity(pref: string) {
       if (this.pref === pref && this.loadedPref === pref) return;
       if (!cityCache.has(pref)) {
-        const stored = readSessionCity(pref);
+        const stored = readStoredCity(pref);
         if (stored) {
           cityCache.set(pref, {
             corridors: stored.corridors,
@@ -1003,7 +1017,7 @@ export const useBusStore = defineStore("buses", {
           const corridors = cRows.map((c) => markRaw({ ...c, pref: c.pref || pref }));
           const stops = buildNormalizedStops(sRows, pref);
           cityCache.set(pref, { corridors, stops, legStops: {} });
-          writeSessionCity(pref, corridors, stops);
+          writeStoredCity(pref, corridors, stops);
           if (this.pref === pref && (this.corridors.length === 0 || this.stops.length === 0)) {
             this.corridors = corridors;
             this.stops = stops;
@@ -1056,7 +1070,7 @@ export const useBusStore = defineStore("buses", {
         void this.fetchSiteConfig(pref);
       }
       if (this.loadedPref !== pref) {
-        const stored = readSessionCity(pref);
+        const stored = readStoredCity(pref);
         if (stored) {
           this.corridors = stored.corridors;
           this.stops = stored.stops;

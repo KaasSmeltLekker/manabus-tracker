@@ -45,13 +45,45 @@ function githubPagesAssets(): Plugin {
   };
 }
 
+function preconnectApi(apiBase?: string): Plugin {
+  return {
+    name: "preconnect-api",
+    transformIndexHtml() {
+      const trimmed = String(apiBase ?? "").trim();
+      if (!trimmed) return [];
+      try {
+        const origin = new URL(trimmed).origin;
+        return [
+          {
+            tag: "link",
+            attrs: { rel: "preconnect", href: origin, crossorigin: "" },
+            injectTo: "head",
+          },
+          {
+            tag: "link",
+            attrs: { rel: "dns-prefetch", href: origin },
+            injectTo: "head",
+          },
+        ];
+      } catch {
+        return [];
+      }
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const target = env.VITE_PROXY_TARGET || "http://localhost:8080";
 
   return {
     base: normalizeBasePath(env.VITE_BASE_PATH),
-    plugins: [vue(), maplibreWorkerAssets(), githubPagesAssets()],
+    plugins: [
+      vue(),
+      preconnectApi(env.VITE_API_BASE),
+      maplibreWorkerAssets(),
+      githubPagesAssets(),
+    ],
     optimizeDeps: {
       exclude: ["maplibre-gl"],
     },

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
+import { apiUrl } from "./config";
 import { prefetchMapStyle } from "./mapStyle";
 import { CITY_PREF, currentRoute, goCorridor, goStop } from "./router";
 import {
@@ -236,20 +237,40 @@ const activeStopId = computed(() =>
 
 let prefetchIdleId: number | null = null;
 let prefetchTimerId: ReturnType<typeof setTimeout> | null = null;
+let mobileMapWarmed = false;
+let mobileMapIdleId: number | null = null;
+let mobileMapTimerId: ReturnType<typeof setTimeout> | null = null;
+
+function shouldAvoidBackgroundPrefetch(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const conn = (
+    navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }
+  ).connection;
+  return Boolean(
+    conn?.saveData || conn?.effectiveType === "slow-2g" || conn?.effectiveType === "2g",
+  );
+}
 
 onMounted(() => {
   mq?.addEventListener("change", onMediaChange);
   window.addEventListener("resize", onResize);
   window.addEventListener("keydown", onPopupKeyDown);
   store.connectLive();
-  if (typeof window !== "undefined") {
+  if (currentRoute.value.name === "home") {
+    void fetch(apiUrl("/api/health"), { cache: "no-store" }).catch(() => {});
+  }
+  if (typeof window !== "undefined" && !shouldAvoidBackgroundPrefetch()) {
     const runPrefetch = () => {
       prefetchIdleId = null;
       prefetchTimerId = null;
-      void loadMapView();
       void loadRoutePanel();
       void loadStopArrivalPanel();
-      prefetchMapStyle();
+      if (isDesktop.value) {
+        void loadMapView();
+        prefetchMapStyle();
+      }
     };
     if (typeof window.requestIdleCallback === "function") {
       prefetchIdleId = window.requestIdleCallback(runPrefetch, { timeout: 1500 });
@@ -273,10 +294,47 @@ onBeforeUnmount(() => {
     clearTimeout(prefetchTimerId);
     prefetchTimerId = null;
   }
+  if (
+    mobileMapIdleId !== null &&
+    typeof window !== "undefined" &&
+    typeof window.cancelIdleCallback === "function"
+  ) {
+    window.cancelIdleCallback(mobileMapIdleId);
+    mobileMapIdleId = null;
+  }
+  if (mobileMapTimerId !== null) {
+    clearTimeout(mobileMapTimerId);
+    mobileMapTimerId = null;
+  }
   mq?.removeEventListener("change", onMediaChange);
   window.removeEventListener("resize", onResize);
   window.removeEventListener("keydown", onPopupKeyDown);
   store.disconnectLive();
+});
+
+watch([currentRoute, corridors, isDesktop], ([route, list, desktop]) => {
+  if (
+    desktop ||
+    mobileMapWarmed ||
+    route.name !== "city" ||
+    list.length === 0 ||
+    shouldAvoidBackgroundPrefetch() ||
+    typeof window === "undefined"
+  ) {
+    return;
+  }
+  mobileMapWarmed = true;
+  const warmMobileMap = () => {
+    mobileMapIdleId = null;
+    mobileMapTimerId = null;
+    void loadMapView();
+    prefetchMapStyle();
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    mobileMapIdleId = window.requestIdleCallback(warmMobileMap, { timeout: 3000 });
+  } else {
+    mobileMapTimerId = setTimeout(warmMobileMap, 1500);
+  }
 });
 
 watch(

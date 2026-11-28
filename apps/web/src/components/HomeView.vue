@@ -24,8 +24,10 @@ function onBrandTap() {
 
 function warmCity(city: CityId) {
   store.prefetchCity(CITY_PREF[city]);
-  prefetchMapStyle();
-  void import("./MapView.vue");
+  if (typeof window !== "undefined" && window.matchMedia("(min-width: 769px)").matches) {
+    prefetchMapStyle();
+    void import("./MapView.vue");
+  }
 }
 </script>
 
