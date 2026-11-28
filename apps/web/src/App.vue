@@ -293,6 +293,18 @@ watch(
         void store.fetchSiteConfig(CITY_PREF[route.city]);
       }
     }
+    if (typeof document !== "undefined") {
+      const themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) {
+        const nextThemeColor =
+          route.name === "admin"
+            ? "#7f1d1d"
+            : route.name !== "home" && route.city === "yogyakarta"
+              ? "#eab308"
+              : "#715d80";
+        themeMeta.setAttribute("content", nextThemeColor);
+      }
+    }
     activeBusId.value = null;
     sheetCollapsed.value = false;
     sheetDragging.value = false;
@@ -748,10 +760,15 @@ body,
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--bg-app);
   color: var(--text-primary);
   font-family: var(--font-ui);
   -webkit-tap-highlight-color: transparent;
+}
+button,
+a {
+  touch-action: manipulation;
 }
 button {
   font-family: inherit;
@@ -816,6 +833,7 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg-app);
 }
 .mobile-sheet {
@@ -849,7 +867,7 @@ button {
   appearance: none;
   border: none;
   background: transparent;
-  height: 28px;
+  height: 36px;
   padding: 0 14px;
   width: 100%;
   display: flex;
@@ -865,8 +883,8 @@ button {
   background: var(--handle-bg-hover);
 }
 .sheet-handle {
-  width: 42px;
-  height: 4px;
+  width: 44px;
+  height: 4.5px;
   border-radius: 999px;
   background: var(--handle-bg);
   transition: background-color 140ms ease;
@@ -880,7 +898,7 @@ button {
 .sheet-restore-btn {
   position: absolute;
   left: 50%;
-  bottom: calc(30px + env(safe-area-inset-bottom));
+  bottom: calc(18px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 1001;
   appearance: none;
@@ -888,7 +906,7 @@ button {
   background: var(--bg-elevated);
   color: var(--text-primary);
   border-radius: 999px;
-  padding: 8px 14px;
+  padding: 10px 16px;
   font-size: 0.84rem;
   font-weight: 600;
   display: inline-flex;

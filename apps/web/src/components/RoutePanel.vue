@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { activeCity, goCity, goCorridor } from "../router";
+import { wordOverlap } from "../stores/transitHelpers";
 import {
   compareCorridorCodes,
   contrastText,
@@ -34,6 +35,8 @@ const store = useBusStore();
 const {
   corridors,
   stops,
+  legStops,
+  selectedCorridor,
   visibleBuses,
   visibleStops,
   corridorColors,
@@ -61,6 +64,48 @@ const routeVia = computed(() =>
 const operatingHours = computed(() =>
   formatOperatingHours(corridor.value?.jam_operasional),
 );
+
+const terminusStopIds = computed(() => {
+  const ids = new Set<string>();
+  const list = visibleStops.value;
+  if (list.length === 0) return ids;
+  ids.add(list[0].sh_id);
+  const keyA = `${selectedCorridor.value ?? props.code}|a`;
+  const legA = legStops.value[keyA];
+  if (legA && legA.length >= 2) {
+    ids.add(legA[0].sh_id);
+    ids.add(legA[legA.length - 1].sh_id);
+  } else {
+    const towardRaw = corridor.value?.toward?.trim().toLowerCase() ?? "";
+    const originRaw = corridor.value?.origin?.trim().toLowerCase() ?? "";
+    if (towardRaw && towardRaw !== originRaw) {
+      const exact = list.find(
+        (s) => s.sh_name.trim().toLowerCase() === towardRaw,
+      );
+      if (exact) {
+        ids.add(exact.sh_id);
+      } else {
+        let best: BusStop | null = null;
+        let bestScore = 0;
+        for (const s of list) {
+          const score = wordOverlap(s.sh_name, towardRaw);
+          if (score > bestScore) {
+            bestScore = score;
+            best = s;
+          }
+        }
+        if (best) ids.add(best.sh_id);
+      }
+    } else if (list.length > 1) {
+      ids.add(list[list.length - 1].sh_id);
+    }
+  }
+  return ids;
+});
+
+function isTerminus(stop: BusStop, idx: number): boolean {
+  return idx === 0 || terminusStopIds.value.has(stop.sh_id);
+}
 
 const busList = computed(() =>
   Object.values(visibleBuses.value).sort((a, b) => {
@@ -292,9 +337,9 @@ const otherRoutesByStopId = computed(() => {
           <span class="rail" aria-hidden="true">
             <span v-if="idx > 0" class="line-top"></span>
             <span v-if="idx < visibleStops.length - 1" class="line-bottom"></span>
-            <span class="stop-dot" :class="{ first: idx === 0 }"></span>
+            <span class="stop-dot" :class="{ terminus: isTerminus(stop, idx) }"></span>
           </span>
-          <span class="stop-name" :class="{ last: idx === visibleStops.length - 1 }">{{
+          <span class="stop-name" :class="{ terminus: isTerminus(stop, idx) }">{{
             stop.sh_name
           }}</span>
         </button>
@@ -589,7 +634,7 @@ const otherRoutesByStopId = computed(() => {
   border: 2px solid var(--route-color);
   flex-shrink: 0;
 }
-.stop-dot.first {
+.stop-dot.terminus {
   width: 12px;
   height: 12px;
   background: var(--route-color);
@@ -603,7 +648,7 @@ const otherRoutesByStopId = computed(() => {
   flex: 1;
   min-width: 0;
 }
-.stop-name.last {
+.stop-name.terminus {
   font-weight: 700;
   color: var(--text-strong);
 }

@@ -355,5 +355,16 @@ onBeforeUnmount(() => {
 .theme-switch.on .theme-thumb {
   transform: translateX(14px);
 }
+@media (max-width: 768px) {
+  .brand-bar {
+    height: 52px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .brand-logo {
+    width: 34px;
+    height: 34px;
+  }
+}
 </style>
 

@@ -525,4 +525,16 @@ function onSelectStop(stop: BusStop, preferredCode?: string) {
   background: var(--bg-surface-hover);
   border-color: var(--border-hover);
 }
+@media (max-width: 768px) {
+  .search-box {
+    height: 46px;
+  }
+  .search-input {
+    font-size: 16px;
+  }
+  .clear-btn {
+    width: 34px;
+    height: 34px;
+  }
+}
 </style>

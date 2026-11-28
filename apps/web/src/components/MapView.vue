@@ -701,10 +701,11 @@ async function applyMapStyle(mode: ThemeMode) {
 onMounted(() => {
   disposed = false;
   if (!mapEl.value) return;
-  map = L.map(mapEl.value, { maxZoom: 19, zoomControl: false }).setView(
-    operator.value.center,
-    12,
-  );
+  map = L.map(mapEl.value, {
+    maxZoom: 19,
+    zoomControl: false,
+    bounceAtZoomLimits: false,
+  }).setView(operator.value.center, 12);
   map.attributionControl?.setPrefix(false);
   map.on("zoomend", syncZoomState);
   if (effectiveBottomInset() > 0) {
@@ -716,11 +717,17 @@ onMounted(() => {
   const stopsPane = map.createPane("stopsPane");
   stopsPane.style.zIndex = "420";
 
+  const isTouch =
+    typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   routeRenderer = L.canvas({ pane: "routesPane", padding: 0.5 }).addTo(map);
   routeCasingLayer = L.layerGroup().addTo(map);
   routeLayer = L.layerGroup().addTo(map);
   activeStopLayer = L.layerGroup().addTo(map);
-  stopRenderer = L.canvas({ pane: "stopsPane", padding: 0.5 }).addTo(map);
+  stopRenderer = L.canvas({
+    pane: "stopsPane",
+    padding: 0.5,
+    tolerance: isTouch ? 12 : 4,
+  }).addTo(map);
   stopLayer = L.layerGroup().addTo(map);
   userLayer = L.layerGroup().addTo(map);
 
@@ -747,6 +754,7 @@ onMounted(() => {
       if (!map || disposed) return;
       glLayer = maplibreGL({
         style,
+        pixelRatio: typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1,
         attributionControl: {
           customAttribution:
             '&copy; <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &middot; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> &middot; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OSM</a>',
@@ -979,6 +987,7 @@ watch(
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: initial;
   transition: background-color 140ms ease, color 140ms ease;
 }
@@ -1011,6 +1020,7 @@ watch(
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
   box-shadow: var(--shadow-float);
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, transform 120ms ease;
 }
@@ -1089,12 +1099,22 @@ watch(
 .bus-arrow svg {
   transition: transform 120ms ease;
 }
-.bus-arrow-icon:hover .bus-arrow svg {
-  transform: scale(1.18);
+@media (hover: hover) {
+  .bus-arrow-icon:hover .bus-arrow svg {
+    transform: scale(1.18);
+  }
 }
 .bus-arrow.stale {
   opacity: 0.45;
   filter: saturate(0.4) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+@media (max-width: 768px) {
+  .bus-arrow {
+    filter: none;
+  }
+  .bus-arrow.stale {
+    filter: saturate(0.4);
+  }
 }
 .user-loc-icon {
   background: transparent;
