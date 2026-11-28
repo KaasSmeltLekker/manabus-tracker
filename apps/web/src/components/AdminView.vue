@@ -819,17 +819,26 @@ const routeStopsModalEntry = computed<CorridorEntry | null>(() => {
   return routeEntries.value.find((r) => normCode(r.code) === code) ?? null;
 });
 
+const stopFormCodes = computed(() =>
+  stopForm.corridorsText
+    .split(/[,|]/)
+    .map((s) => normCode(s))
+    .filter(Boolean),
+);
+
 const activeRouteDirOrigin = computed(() => {
   if (routeFormOpen.value) return routeForm.origin.trim();
   if (routeStopsModalEntry.value) return routeStopsModalEntry.value.origin.trim();
-  const r = routeEntries.value.find((e) => normCode(e.code) === normCode(selectedStopRoute.value));
+  const target = normCode(selectedStopRoute.value) || stopFormCodes.value[0] || "";
+  const r = target ? routeEntries.value.find((e) => normCode(e.code) === target) : undefined;
   return r?.origin.trim() ?? "";
 });
 
 const activeRouteDirToward = computed(() => {
   if (routeFormOpen.value) return routeForm.toward.trim();
   if (routeStopsModalEntry.value) return routeStopsModalEntry.value.toward.trim();
-  const r = routeEntries.value.find((e) => normCode(e.code) === normCode(selectedStopRoute.value));
+  const target = normCode(selectedStopRoute.value) || stopFormCodes.value[0] || "";
+  const r = target ? routeEntries.value.find((e) => normCode(e.code) === target) : undefined;
   return r?.toward.trim() ?? "";
 });
 
@@ -2803,26 +2812,58 @@ onMounted(async () => {
                 placeholder="cth. Tanjung Perak"
               />
               <div
-                v-if="activeRouteDirOrigin || activeRouteDirToward"
+                v-if="stopFormCodes.length > 0 || activeRouteDirOrigin || activeRouteDirToward"
                 class="quick-chips"
               >
                 <button
-                  v-if="activeRouteDirToward"
+                  v-if="stopFormCodes.length > 1 || activeRouteDirToward"
                   type="button"
                   class="quick-chip"
-                  :class="{ selected: stopForm.toward === activeRouteDirToward }"
-                  @click="stopForm.toward = activeRouteDirToward"
+                  :class="{
+                    selected:
+                      stopFormCodes.length > 1
+                        ? stopForm.toward === 'A > B'
+                        : stopForm.toward === activeRouteDirToward,
+                  }"
+                  @click="
+                    stopForm.toward =
+                      stopFormCodes.length > 1 ? 'A > B' : activeRouteDirToward
+                  "
                 >
-                  A &gt; B ({{ activeRouteDirToward }})
+                  {{
+                    stopFormCodes.length > 1
+                      ? "A > B"
+                      : `A > B (${activeRouteDirToward})`
+                  }}
                 </button>
                 <button
-                  v-if="activeRouteDirOrigin"
+                  v-if="stopFormCodes.length > 1 || activeRouteDirOrigin"
                   type="button"
                   class="quick-chip"
-                  :class="{ selected: stopForm.toward === activeRouteDirOrigin }"
-                  @click="stopForm.toward = activeRouteDirOrigin"
+                  :class="{
+                    selected:
+                      stopFormCodes.length > 1
+                        ? stopForm.toward === 'B > A'
+                        : stopForm.toward === activeRouteDirOrigin,
+                  }"
+                  @click="
+                    stopForm.toward =
+                      stopFormCodes.length > 1 ? 'B > A' : activeRouteDirOrigin
+                  "
                 >
-                  B &gt; A ({{ activeRouteDirOrigin }})
+                  {{
+                    stopFormCodes.length > 1
+                      ? "B > A"
+                      : `B > A (${activeRouteDirOrigin})`
+                  }}
+                </button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  :class="{ selected: stopForm.toward.trim() === '' }"
+                  @click="stopForm.toward = ''"
+                >
+                  Semua arah
                 </button>
               </div>
             </label>

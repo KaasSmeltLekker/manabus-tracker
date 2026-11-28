@@ -294,7 +294,9 @@ const otherRoutesByStopId = computed(() => {
             <span v-if="idx < visibleStops.length - 1" class="line-bottom"></span>
             <span class="stop-dot" :class="{ first: idx === 0 }"></span>
           </span>
-          <span class="stop-name">{{ stop.sh_name }}</span>
+          <span class="stop-name" :class="{ last: idx === visibleStops.length - 1 }">{{
+            stop.sh_name
+          }}</span>
         </button>
         <div v-if="otherRoutesByStopId.has(stop.sh_id)" class="stop-transfers">
           <template v-for="other in otherRoutesByStopId.get(stop.sh_id)" :key="other.code">
@@ -600,6 +602,10 @@ const otherRoutesByStopId = computed(() => {
   padding: 8px 0;
   flex: 1;
   min-width: 0;
+}
+.stop-name.last {
+  font-weight: 700;
+  color: var(--text-strong);
 }
 .stop-transfers {
   display: flex;

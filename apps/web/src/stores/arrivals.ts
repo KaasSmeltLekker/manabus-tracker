@@ -25,6 +25,7 @@ import {
   resolveCorridorAlias,
   sameCorridorCode,
   trackingCorridorKey,
+  wordOverlap,
 } from "./transitHelpers";
 import { patchYogyakartaCorridorPoints } from "./ykPolylinePatches";
 import { getCustomCorridorPoints } from "./customRoutes";
@@ -126,6 +127,10 @@ function buildStopPositions(legStops: BusStop[], line: LatLng[]): number[] {
   const positions: number[] = [];
   let cursor = 0;
   for (const s of legStops) {
+    if (s.sh_id.startsWith("custom-")) {
+      positions.push(projectStopToLine(s.lat, s.lng, line).pos);
+      continue;
+    }
     let proj = projectPointOnLineRange(
       s.lat,
       s.lng,
@@ -141,6 +146,26 @@ function buildStopPositions(legStops: BusStop[], line: LatLng[]): number[] {
   }
   byLine.set(line, positions);
   return positions;
+}
+
+function resolveStopDirectionForCorridor(
+  stop: BusStop,
+  corridor: Corridor,
+): Direction | null {
+  const tw = stop.toward.trim().toLowerCase();
+  if (!tw) return null;
+  if (tw === "a" || tw === "a>b" || tw === "a > b") return "a";
+  if (tw === "b" || tw === "b>a" || tw === "b > a") return "b";
+  const corrToward = (corridor.toward ?? "").trim().toLowerCase();
+  const corrOrigin = (corridor.origin ?? "").trim().toLowerCase();
+  if (corrToward && corrOrigin && corrToward === corrOrigin) return null;
+  if (corrToward && tw === corrToward) return "a";
+  if (corrOrigin && tw === corrOrigin) return "b";
+  const scoreA = corrToward ? wordOverlap(tw, corrToward) : 0;
+  const scoreB = corrOrigin ? wordOverlap(tw, corrOrigin) : 0;
+  if (scoreA > scoreB && scoreA > 0) return "a";
+  if (scoreB > scoreA && scoreB > 0) return "b";
+  return null;
 }
 
 const MAX_ARRIVAL_DISTANCE_M = 5000;
@@ -175,31 +200,51 @@ export function computeStopArrivals(
     const corridor = findCorridorByCode(corridors, code);
     if (!corridor) continue;
     const corridorColor = normalizeColor(corridor.color) ?? colorMap[code] ?? badge.color;
-    const dirs: Direction[] = corridorHasTwoDirections(corridor) ? ["a", "b"] : ["a"];
+    const forcedDir = resolveStopDirectionForCorridor(stop, corridor);
+    const candidateDirs: Direction[] = !corridorHasTwoDirections(corridor)
+      ? ["a"]
+      : forcedDir
+        ? [forcedDir]
+        : ["a", "b"];
+    const exactDirs = candidateDirs.filter((d) =>
+      legStopsMap[`${code}|${d}`]?.some((s) => s.sh_id === stop.sh_id),
+    );
+    const activeDirs = exactDirs.length > 0 ? exactDirs : candidateDirs;
 
-    for (const dir of dirs) {
+    for (const dir of activeDirs) {
       const legKey = `${code}|${dir}`;
       const leg = legStopsMap[legKey];
-      if (!leg || leg.length === 0) continue;
-
-      let targetIdx = leg.findIndex((s) => s.sh_id === stop.sh_id);
-      if (targetIdx < 0) {
-        let bestStopDist = 25;
-        for (let i = 0; i < leg.length; i++) {
-          const d = approxMeters([leg[i].lat, leg[i].lng], [stop.lat, stop.lng]);
-          if (d <= bestStopDist) {
-            bestStopDist = d;
-            targetIdx = i;
-          }
-        }
-      }
-      if (targetIdx < 0) continue;
-
       const line = corridorLegPoints(corridor, dir);
       if (line.length < 2) continue;
 
-      const stopPositions = buildStopPositions(leg, line);
-      const targetPos = stopPositions[targetIdx];
+      const stopPositions = leg && leg.length > 0 ? buildStopPositions(leg, line) : [];
+      let targetIdx = leg ? leg.findIndex((s) => s.sh_id === stop.sh_id) : -1;
+      let isCustomTarget = stop.sh_id.startsWith("custom-");
+      let targetPos = targetIdx >= 0 ? stopPositions[targetIdx] : 0;
+
+      if (targetIdx < 0) {
+        if (exactDirs.length > 0) continue;
+        if (leg && leg.length > 0 && !forcedDir) {
+          let bestStopDist = 25;
+          for (let i = 0; i < leg.length; i++) {
+            const d = approxMeters([leg[i].lat, leg[i].lng], [stop.lat, stop.lng]);
+            if (d <= bestStopDist) {
+              bestStopDist = d;
+              targetIdx = i;
+            }
+          }
+          if (targetIdx >= 0) {
+            targetPos = stopPositions[targetIdx];
+          }
+        }
+        if (targetIdx < 0) {
+          if (forcedDir !== dir && !isCustomTarget) continue;
+          const directProj = projectStopToLine(stop.lat, stop.lng, line);
+          if (directProj.dist > 120) continue;
+          targetPos = directProj.pos;
+          isCustomTarget = true;
+        }
+      }
 
       for (const bus of Object.values(buses)) {
         if (bus.stale || !bus.corridor) continue;
@@ -210,17 +255,19 @@ export function computeStopArrivals(
         if (!sameCorridorCode(busCode, code)) continue;
         if (!busMatchesDirection(bus, corridor, dir)) continue;
 
-        const nextIdx = bus.next_halte
-          ? leg.findIndex((s) => s.sh_id === bus.next_halte)
-          : -1;
-        const prevIdx = bus.prev_halte
-          ? leg.findIndex((s) => s.sh_id === bus.prev_halte)
-          : -1;
+        const nextIdx =
+          bus.next_halte && leg ? leg.findIndex((s) => s.sh_id === bus.next_halte) : -1;
+        const prevIdx =
+          bus.prev_halte && leg ? leg.findIndex((s) => s.sh_id === bus.prev_halte) : -1;
 
         let busProj: { dist: number; pos: number };
         if (nextIdx >= 0) {
-          if (nextIdx > targetIdx) continue;
-          if (targetIdx === 0 && nextIdx > 0) continue;
+          if (isCustomTarget) {
+            if (stopPositions[nextIdx] > targetPos + 120) continue;
+          } else {
+            if (nextIdx > targetIdx) continue;
+            if (targetIdx === 0 && nextIdx > 0) continue;
+          }
           const anchorPrevPos =
             prevIdx >= 0 && prevIdx <= nextIdx
               ? stopPositions[prevIdx]
@@ -239,7 +286,7 @@ export function computeStopArrivals(
         } else {
           busProj = projectStopToLine(bus.lat, bus.lng, line);
           if (busProj.dist > 450) continue;
-          if (targetIdx === 0) {
+          if (!isCustomTarget && targetIdx === 0) {
             if (
               busProj.pos > targetPos + 40 ||
               approxMeters([bus.lat, bus.lng], [stop.lat, stop.lng]) > 150
@@ -251,7 +298,7 @@ export function computeStopArrivals(
         }
 
         let remainingMeters: number;
-        if (nextIdx === targetIdx && busProj.pos > targetPos) {
+        if (!isCustomTarget && nextIdx === targetIdx && busProj.pos > targetPos) {
           const direct = approxMeters([bus.lat, bus.lng], [stop.lat, stop.lng]);
           if (direct > 160) continue;
           remainingMeters = direct;
@@ -267,9 +314,11 @@ export function computeStopArrivals(
           inferredNextIdx = nextIdx;
         } else {
           const foundIdx = stopPositions.findIndex((p) => p >= busProj.pos - 20);
-          inferredNextIdx = foundIdx >= 0 ? foundIdx : targetIdx;
+          inferredNextIdx = foundIdx >= 0 ? foundIdx : Math.max(0, targetIdx);
         }
-        const stopsBetween = Math.max(0, targetIdx - Math.max(0, inferredNextIdx));
+        const stopsBetween = isCustomTarget
+          ? stopPositions.filter((p) => p > busProj.pos + 20 && p < targetPos - 20).length
+          : Math.max(0, targetIdx - Math.max(0, inferredNextIdx));
 
         const baseKmh = 20;
         const rawSpeed = bus.speed ?? 0;
@@ -294,9 +343,9 @@ export function computeStopArrivals(
           segmentText = `${prevName} → ${nextName}`;
         } else if (nextName) {
           segmentText = `Menuju ${nextName}`;
-        } else if (inferredNextIdx > 0 && leg[inferredNextIdx - 1] && leg[inferredNextIdx]) {
+        } else if (leg && inferredNextIdx > 0 && leg[inferredNextIdx - 1] && leg[inferredNextIdx]) {
           segmentText = `${leg[inferredNextIdx - 1].sh_name} → ${leg[inferredNextIdx].sh_name}`;
-        } else if (leg[inferredNextIdx]) {
+        } else if (leg && leg[inferredNextIdx]) {
           segmentText = `Menuju ${leg[inferredNextIdx].sh_name}`;
         }
 
