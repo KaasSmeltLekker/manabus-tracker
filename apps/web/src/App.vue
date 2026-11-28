@@ -30,7 +30,6 @@ const {
   stops,
   selectedStop,
   corridorColors,
-  selectedDirection,
   cityPopup,
   siteConfigPref,
   pref,
@@ -278,10 +277,6 @@ onBeforeUnmount(() => {
   window.removeEventListener("resize", onResize);
   window.removeEventListener("keydown", onPopupKeyDown);
   store.disconnectLive();
-});
-
-watch(selectedDirection, () => {
-  activeBusId.value = null;
 });
 
 watch(

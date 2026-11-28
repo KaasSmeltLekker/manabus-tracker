@@ -8,11 +8,10 @@ import {
   corridorBadgeLabel,
   corridorCode,
   corridorDisplayName,
-  corridorHasTwoDirections,
+  corridorDisplayVia,
   extraStopRoutes,
   formatIdleAge,
   formatOperatingHours,
-  formatStopLabel,
   lookupCorridorValue,
   normalizeColor,
   sameCorridorCode,
@@ -35,7 +34,6 @@ const store = useBusStore();
 const {
   corridors,
   stops,
-  selectedDirection,
   visibleBuses,
   visibleStops,
   corridorColors,
@@ -56,29 +54,8 @@ const routeName = computed(() =>
   corridor.value ? corridorDisplayName(corridor.value) : props.code,
 );
 
-const originLabel = computed(() => {
-  const raw = corridor.value?.origin?.trim();
-  if (raw) return formatStopLabel(raw);
-  const parts = routeName.value.split("-");
-  return formatStopLabel(parts[0]?.trim() || "A");
-});
-
-const towardLabel = computed(() => {
-  if (store.pref === "3501" && props.code === "FD10") return "Halte Pasar Atom 2";
-  const raw = corridor.value?.toward?.trim();
-  if (raw) return formatStopLabel(raw);
-  const parts = routeName.value.split("-");
-  return formatStopLabel(parts[parts.length - 1]?.trim() || "B");
-});
-
-const hasTwoDirections = computed(() => corridorHasTwoDirections(corridor.value));
-
-const fromLabel = computed(() =>
-  selectedDirection.value === "a" ? originLabel.value : towardLabel.value,
-);
-
-const toLabel = computed(() =>
-  selectedDirection.value === "a" ? towardLabel.value : originLabel.value,
+const routeVia = computed(() =>
+  corridor.value ? corridorDisplayVia(corridor.value) : null,
 );
 
 const operatingHours = computed(() =>
@@ -139,7 +116,7 @@ watch(busChipsEl, (el) => {
   void nextTick(syncChipScroll);
 });
 
-watch([() => props.code, selectedDirection], () => {
+watch(() => props.code, () => {
   if (busChipsEl.value) busChipsEl.value.scrollLeft = 0;
   void nextTick(syncChipScroll);
 });
@@ -222,10 +199,6 @@ const otherRoutesByStopId = computed(() => {
   }
   return map;
 });
-
-function toggleDirection() {
-  store.setDirection(selectedDirection.value === "a" ? "b" : "a");
-}
 </script>
 
 <template>
@@ -246,31 +219,9 @@ function toggleDirection() {
           {{ corridorBadgeLabel(code) }}
         </span>
 
-        <div class="dir-card">
-          <div class="dir-endpoints">
-            <div class="ep-rail" aria-hidden="true">
-              <span class="ep-dot origin"></span>
-              <span class="ep-line"></span>
-              <span class="ep-dot dest"></span>
-            </div>
-            <div class="ep-labels">
-              <span class="ep-from">{{ fromLabel }}</span>
-              <span class="ep-to">{{ toLabel }}</span>
-            </div>
-          </div>
-
-          <button
-            v-if="hasTwoDirections"
-            type="button"
-            class="swap-btn"
-            aria-label="Balik arah"
-            title="Balik arah"
-            @click="toggleDirection()"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M8 5v14M8 19l-3.5-3.5M8 19l3.5-3.5M16 19V5M16 5l-3.5 3.5M16 5l3.5 3.5" />
-            </svg>
-          </button>
+        <div class="route-title-card">
+          <div class="route-title">{{ routeName }}</div>
+          <div v-if="routeVia" class="route-via">{{ routeVia }}</div>
         </div>
       </div>
 
@@ -420,7 +371,7 @@ function toggleDirection() {
   justify-content: center;
   flex-shrink: 0;
 }
-.dir-card {
+.route-title-card {
   flex: 1;
   min-width: 0;
   min-height: 58px;
@@ -428,87 +379,22 @@ function toggleDirection() {
   background: var(--bg-accent-card);
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  padding: 8px 8px 8px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.dir-endpoints {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-.ep-rail {
-  width: 10px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 0;
-  flex-shrink: 0;
+  justify-content: center;
+  gap: 2px;
 }
-.ep-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.ep-dot.origin {
-  background: var(--text-muted);
-}
-.ep-dot.dest {
-  background: var(--route-color);
-}
-.ep-line {
-  width: 2px;
-  flex: 1;
-  margin: 2px 0;
-  background: var(--ep-line);
-}
-.ep-labels {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.ep-from,
-.ep-to {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ep-from {
-  font-size: 0.78rem;
-  line-height: 1.25;
-  color: var(--text-origin);
-}
-.ep-to {
-  font-size: 0.9rem;
+.route-title {
+  font-size: 0.94rem;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.3;
   color: var(--text-strong);
 }
-.swap-btn {
-  appearance: none;
-  border: 1px solid var(--border-swap);
-  background: var(--bg-swap);
-  color: var(--text-swap);
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background-color 140ms ease, color 140ms ease;
-}
-.swap-btn:hover {
-  background: var(--bg-swap-hover);
-  color: var(--text-swap-hover);
+.route-via {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--text-muted);
 }
 .meta-row {
   margin-top: 12px;

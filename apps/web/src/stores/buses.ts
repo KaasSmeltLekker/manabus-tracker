@@ -14,7 +14,6 @@ import {
   type RawStop,
   type UserLocation,
   OPERATORS,
-  busMatchesDirection,
   compactCode,
   compareCorridorCodes,
   corridorCode,
@@ -397,6 +396,23 @@ function inCodeSets(
   return sets.codes.has(code) || sets.compact.has(compactCode(code));
 }
 
+function mergeCombinedStops(legs: BusStop[][]): BusStop[] {
+  const seenId = new Set<string>();
+  const seenNameCoord = new Set<string>();
+  const out: BusStop[] = [];
+  for (const list of legs) {
+    for (const stop of list) {
+      if (seenId.has(stop.sh_id)) continue;
+      const nameKey = `${stop.sh_name.trim().toLowerCase()}|${stop.lat.toFixed(3)},${stop.lng.toFixed(3)}`;
+      if (seenNameCoord.has(nameKey)) continue;
+      seenId.add(stop.sh_id);
+      seenNameCoord.add(nameKey);
+      out.push(stop);
+    }
+  }
+  return out;
+}
+
 export const useBusStore = defineStore("buses", {
   state: () => ({
     buses: {} as Record<string, Bus>,
@@ -409,7 +425,6 @@ export const useBusStore = defineStore("buses", {
     loadedPref: null as string | null,
     selectedCorridor: null as string | null,
     selectedStopId: null as string | null,
-    selectedDirection: "a" as Direction,
     trackingLocation: false,
     refreshingLocation: false,
     userLocation: null as UserLocation | null,
@@ -538,17 +553,12 @@ export const useBusStore = defineStore("buses", {
         return s.buses;
       }
       const target = s.selectedCorridor;
-      const corridor = findCorridorByCode(s.corridors, target);
       const filtered: Record<string, Bus> = {};
       for (const [id, b] of Object.entries(s.buses)) {
         const rawCode = b.corridor?.trim().toUpperCase();
         const tracked = rawCode ? trackingCorridorKey(rawCode, s.pref) : undefined;
         const code = tracked ? resolveCorridorAlias(s.corridors, tracked) : undefined;
-        if (
-          code &&
-          sameCorridorCode(code, target) &&
-          busMatchesDirection(b, corridor, s.selectedDirection)
-        ) {
+        if (code && sameCorridorCode(code, target)) {
           filtered[id] = b;
         }
       }
@@ -573,22 +583,35 @@ export const useBusStore = defineStore("buses", {
         return s.stops;
       }
       const target = s.selectedCorridor;
-      const legKey = `${target}|${s.selectedDirection}`;
-      const cached = s.legStops[legKey];
-      if (cached && cached.length > 0) return cached;
-
       const corridor = findCorridorByCode(s.corridors, target);
       const corridorStops = s.stops.filter(
         (stop) =>
           sameCorridorCode(stop.kor, target) ||
           stop.corridors.some((code) => sameCorridorCode(code, target)),
       );
-      return normalizeLegStops(
-        target,
-        s.selectedDirection,
-        fallbackLegStops(corridorStops, corridor, s.selectedDirection),
-        s.pref,
-      );
+      const cachedA = s.legStops[`${target}|a`];
+      const legA =
+        cachedA && cachedA.length > 0
+          ? cachedA
+          : normalizeLegStops(
+              target,
+              "a",
+              fallbackLegStops(corridorStops, corridor, "a"),
+              s.pref,
+            );
+      const twoDir = !corridor || corridorHasTwoDirections(corridor);
+      const cachedB = twoDir ? s.legStops[`${target}|b`] : undefined;
+      const legB = twoDir
+        ? cachedB && cachedB.length > 0
+          ? cachedB
+          : normalizeLegStops(
+              target,
+              "b",
+              fallbackLegStops(corridorStops, corridor, "b"),
+              s.pref,
+            )
+        : [];
+      return mergeCombinedStops([legA, legB, corridorStops]);
     },
     corridorLines: (s): CorridorLine[] => {
       const lines: CorridorLine[] = [];
@@ -623,11 +646,7 @@ export const useBusStore = defineStore("buses", {
       if (!corridor) return [];
       const segA = corridorLegPoints(corridor, "a");
       const segB = corridorLegPoints(corridor, "b");
-      const chosen = this.selectedDirection === "a" ? segA : segB;
-      const segments =
-        chosen.length >= 2
-          ? [chosen]
-          : [segA, segB].filter((seg) => seg.length >= 2);
+      const segments = [segA, segB].filter((seg) => seg.length >= 2);
       if (segments.length === 0) return [];
       return [
         {
@@ -824,14 +843,6 @@ export const useBusStore = defineStore("buses", {
       }
     },
 
-    setDirection(dir: Direction) {
-      if (this.selectedDirection === dir) return;
-      this.selectedDirection = dir;
-      if (this.selectedCorridor) {
-        void this.fetchLegStops(this.selectedCorridor, dir);
-      }
-    },
-
     setSelectedStop(stopId: string | null) {
       this.selectedStopId = stopId;
     },
@@ -860,13 +871,11 @@ export const useBusStore = defineStore("buses", {
     setSelectedCorridor(code: string | null) {
       if (code === null) {
         this.selectedCorridor = null;
-        this.selectedDirection = "a";
         return;
       }
       const norm = trackingCorridorKey(code.trim().toUpperCase(), this.pref) || null;
       if (this.selectedCorridor !== norm) {
         this.selectedCorridor = norm;
-        this.selectedDirection = "a";
       }
       if (norm) {
         const corridor = findCorridorByCode(this.corridors, norm);
@@ -1026,7 +1035,6 @@ export const useBusStore = defineStore("buses", {
         this.loadingLegs = {};
         this.selectedCorridor = null;
         this.selectedStopId = null;
-        this.selectedDirection = "a";
         this.socket?.emit("subscribe", pref);
         const memCached = cityCache.get(pref);
         if (memCached) {

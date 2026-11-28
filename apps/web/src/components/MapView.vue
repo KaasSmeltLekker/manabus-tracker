@@ -49,7 +49,6 @@ const {
   visibleStops,
   visibleCorridorLines,
   selectedCorridor,
-  selectedDirection,
   selectedStopId,
   selectedStop,
   stops,
@@ -825,7 +824,7 @@ watch(
   },
 );
 watch(
-  [busesVersion, selectedCorridor, selectedDirection, selectedStopId, corridorColors, corridors],
+  [busesVersion, selectedCorridor, selectedStopId, corridorColors, corridors],
   scheduleSyncMarkers,
 );
 watch(userLocation, syncUserLocation, { deep: true });
